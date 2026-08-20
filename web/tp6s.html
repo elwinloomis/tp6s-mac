@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TP6-S</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- ── bar ──────────────────────────────────────────────────────────── -->
+  <header class="bar">
+    <div class="bar__brand">
+      <span class="brand__mark">TP6<i>·</i>S</span>
+      <span class="brand__sub" id="docSummary">nothing loaded</span>
+    </div>
+
+    <div class="link" id="linkChip" data-state="off">
+      <span class="link__dot" aria-hidden="true"></span>
+      <span class="link__name" id="linkName">Not connected</span>
+      <span class="link__telem" id="linkTelem" hidden></span>
+    </div>
+
+    <div class="bar__actions">
+      <button class="chip chip--quiet" id="fileBtn" popovertarget="fileMenu" aria-haspopup="menu">File <span class="menu__caret" aria-hidden="true">&#9662;</span></button>
+      <div class="menu" id="fileMenu" popover role="menu">
+        <button class="menu__item" id="openPage" role="menuitem"><span>Open page&hellip;</span><kbd>&#8984;O</kbd></button>
+        <button class="menu__item" id="savePage" role="menuitem"><span>Save page</span><kbd>&#8984;&#8679;S</kbd></button>
+        <hr class="menu__rule">
+        <button class="menu__item" id="savePng" role="menuitem"><span>Export PNG&hellip;</span><kbd>&#8984;S</kbd></button>
+      </div>
+      <button class="chip" id="connectBtn">Connect</button>
+      <button class="chip chip--quiet" id="disconnectBtn" hidden>Disconnect</button>
+      <button class="btn btn--print" id="printBtn" disabled>Print</button>
+    </div>
+  </header>
+
+  <!-- ── left: source ─────────────────────────────────────────────────── -->
+  <aside class="pane pane--left">
+    <div class="pane__head"><h2 class="pane__title">Source</h2></div>
+
+    <nav class="modes" id="modes" role="tablist" aria-label="Source">
+      <button class="mode is-on" data-mode="image" role="tab" aria-selected="true">
+        <span class="mode__key">1</span>
+        <span class="mode__name">Image</span>
+        <span class="mode__note">photo or artwork, halftoned</span>
+      </button>
+      <button class="mode" data-mode="quote" role="tab" aria-selected="false">
+        <span class="mode__key">2</span>
+        <span class="mode__name">Quote</span>
+        <span class="mode__note">typeset a card</span>
+      </button>
+      <button class="mode" data-mode="text" role="tab" aria-selected="false">
+        <span class="mode__key">3</span>
+        <span class="mode__name">Text</span>
+        <span class="mode__note">plain monospace lines</span>
+      </button>
+      <button class="mode" data-mode="draw" role="tab" aria-selected="false">
+        <span class="mode__key">4</span>
+        <span class="mode__name">Compose</span>
+        <span class="mode__note">draw, place pictures, set type</span>
+      </button>
+      <button class="mode" data-mode="test" role="tab" aria-selected="false">
+        <span class="mode__key">5</span>
+        <span class="mode__name">Test</span>
+        <span class="mode__note">patterns and calibration</span>
+      </button>
+      <button class="mode" data-mode="term" role="tab" aria-selected="false">
+        <span class="mode__key">6</span>
+        <span class="mode__name">Terminal</span>
+        <span class="mode__note">raw CUS frames</span>
+      </button>
+    </nav>
+
+    <div class="pane__scroll" id="sourcePanels">
+
+      <!-- image -->
+      <section class="src" data-for="image">
+        <div class="drop" id="imageDrop">
+          <p class="drop__lead">Drop an image here</p>
+          <p class="drop__sub">or paste, or</p>
+          <button class="chip" id="imagePick">Choose a file</button>
+          <p class="micro">JPG · PNG · GIF · WebP · PBM</p>
+        </div>
+        <p class="micro" id="imageMeta" hidden></p>
+        <div class="fieldrow" id="imageActions" hidden>
+          <button class="chip chip--quiet" id="imageReplace">Replace</button>
+          <button class="chip chip--quiet" id="imageClear">Remove</button>
+        </div>
+        <div class="recipe">
+          <h3 class="lbl">Known-good recipe</h3>
+          <p class="micro">Woodcut, linocut, letterpress, scratchboard, engraving.
+            A style whose ideal form is already broken is immune to bloom, because
+            there is no clean reference to fall short of. Compose at 948&times;1659
+            for a business card, or 576 wide for no resampling at all.</p>
+        </div>
+      </section>
+
+      <!-- quote -->
+      <section class="src" data-for="quote" hidden>
+        <textarea id="qText" rows="6" spellcheck="false"
+          placeholder="Type the quote. Press Return for a line break."
+          aria-label="Quote text"></textarea>
+        <div class="fieldrow">
+          <button class="chip" id="qRandom">Random quote</button>
+          <button class="chip chip--quiet" id="qFit">Fit to card</button>
+        </div>
+        <div class="ctl">
+          <span class="micro">Shape</span>
+          <select id="qShape">
+            <option value="portrait">Strip &mdash; 48 mm wide, height follows the text</option>
+            <option value="landscape">Landscape 5:3 &mdash; prints sideways</option>
+            <option value="label">Label &mdash; fits 57&times;30 mm stock</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- text -->
+      <section class="src" data-for="text" hidden>
+        <textarea id="txtText" rows="10" spellcheck="false"
+          placeholder="Type or paste. Lines longer than the head wrap automatically."
+          aria-label="Text"></textarea>
+        <p class="micro">The printer's built-in look: one monospace face, no
+          layout, wrapped at the head width. For anything you want to keep, use
+          Quote instead.</p>
+      </section>
+
+      <!-- compose -->
+      <section class="src" data-for="draw" hidden>
+        <div class="ctl">
+          <span class="micro">Tool</span>
+          <div class="segset segset--wrap" id="cTool" role="group" aria-label="Tool">
+            <button data-v="select" class="is-on">Select</button>
+            <button data-v="pen">Pen</button>
+            <button data-v="erase">Erase</button>
+            <button data-v="text">Text</button>
+          </div>
+        </div>
+        <div class="fieldrow">
+          <button class="chip" id="cAddImage">Place a picture</button>
+          <button class="chip" id="cAddText">Add text</button>
+        </div>
+        <div class="ctl">
+          <span class="micro">Brush <b class="val" id="cBrushV">6</b> dots</span>
+          <input type="range" id="cBrush" min="1" max="48" value="6">
+        </div>
+        <div class="ctl">
+          <span class="micro">Page <b class="val" id="cHeightV">576</b> lines</span>
+          <input type="range" id="cHeight" min="128" max="2400" step="8" value="576">
+        </div>
+        <h3 class="lbl">On the page</h3>
+        <ol class="objlist" id="cList"></ol>
+        <p class="micro" id="cEmpty">Nothing placed yet. Drop a picture anywhere,
+          or pick a tool and work on the paper.</p>
+        <div class="fieldrow">
+          <button class="chip chip--quiet" id="cUndo">Undo</button>
+          <button class="chip chip--quiet" id="cClear">Clear page</button>
+        </div>
+        <p class="micro">File &rsaquo; Save page keeps the objects &mdash; where things
+          sit, what the words are, which face they are set in. Export PNG keeps
+          only the dots. The page also autosaves as you work, so a reload does
+          not lose it.</p>
+      </section>
+
+      <!-- test -->
+      <section class="src" data-for="test" hidden>
+        <div class="ctl">
+          <span class="micro">Pattern</span>
+          <select id="testPattern">
+            <option value="bars">Bars &mdash; 4-dot stripes</option>
+            <option value="ramp">Ramp &mdash; 16 density bands</option>
+            <option value="black">Solid black</option>
+            <option value="white">Solid white</option>
+            <option value="calib">Calibration square &mdash; 576&times;576</option>
+          </select>
+        </div>
+        <div class="ctl" id="testWidthCtl">
+          <span class="micro">Head width</span>
+          <select id="testWidth">
+            <option value="72">72 B &mdash; 576 dots, full 48 mm</option>
+            <option value="48">48 B &mdash; 384 dots, inset 32 mm</option>
+          </select>
+        </div>
+        <div class="ctl" id="testHeightCtl">
+          <span class="micro">Height <b class="val" id="testHV">64</b> lines</span>
+          <input type="range" id="testH" min="8" max="400" step="8" value="64">
+        </div>
+        <div class="fieldrow">
+          <button class="chip" id="feedBtn" disabled>Feed <b class="val" id="feedLinesV">85</b> lines</button>
+        </div>
+        <div class="ctl">
+          <input type="range" id="feedLines" min="10" max="400" value="85" aria-label="Feed lines">
+        </div>
+        <p class="micro" id="testNote">The calibration square settles whether the
+          feed axis steps at the same pitch as the 576-dot head. Print it, measure
+          both sides. If they differ, every image is stretched along the feed and
+          the fix belongs in the scaler.</p>
+      </section>
+
+      <!-- terminal -->
+      <section class="src" data-for="term" hidden>
+        <div class="fieldrow">
+          <button class="chip" id="gattBtn" disabled>Read GATT services</button>
+          <button class="chip chip--quiet" id="termClear">Clear</button>
+        </div>
+        <div class="ctl">
+          <span class="micro">Write chunk</span>
+          <select id="chunkSel">
+            <option value="244">244 B &mdash; MTU 247, matches the CLI</option>
+            <option value="182">182 B &mdash; MTU 185</option>
+            <option value="120">120 B</option>
+            <option value="20">20 B &mdash; always safe, ~10&times; slower</option>
+          </select>
+        </div>
+        <p class="micro">Web Bluetooth hides the negotiated MTU. An oversized
+          chunk is truncated by the OS with no error, which corrupts frame
+          reassembly and prints garbage. Step down one size if that happens.</p>
+        <h3 class="lbl">Grammar</h3>
+        <ul class="keys">
+          <li><code>cus 02 55 00</code><span>feed 85 lines</span></li>
+          <li><code>cus 09 08</code><span>density 8</span></li>
+          <li><code>cus 0A 03</code><span>speed 3</span></li>
+          <li><code>speed 3</code><span>same, spelled out</span></li>
+          <li><code>64 00 …</code><span>raw bytes</span></li>
+          <li><code>hex</code><span>switch hex / ascii</span></li>
+        </ul>
+      </section>
+
+    </div>
+  </aside>
+
+  <!-- ── centre: the paper path ───────────────────────────────────────── -->
+  <main class="stage" id="stage">
+
+    <div class="stagebar">
+      <div class="segset segset--sm" id="zoomSet" role="group" aria-label="Preview scale">
+        <button data-v="fit" class="is-on" title="Scale the whole strip to the window">Fit</button>
+        <button data-v="actual" title="48 mm wide, as it lands on paper">Actual</button>
+        <button data-v="dots" title="One dot, one screen pixel">1:1 dots</button>
+      </div>
+      <span class="spacer"></span>
+      <button class="chip chip--quiet" id="cropBtn" hidden>Crop</button>
+      <button class="chip chip--quiet" id="cropClear" hidden>Full frame</button>
+      <button class="chip chip--quiet" id="trimBtn" hidden>Trim white</button>
+      <span class="spacer"></span>
+      <span class="readout" id="stageReadout"></span>
+    </div>
+
+    <!-- paper path -->
+    <div class="path" id="path">
+      <div class="path__ruler" id="ruler" aria-hidden="true"></div>
+
+      <div class="roll" id="roll">
+        <div class="roll__head" id="rollHead">
+          <span class="roll__headlabel">576 dots &mdash; 48 mm</span>
+        </div>
+        <div class="paper" id="paper">
+          <canvas id="preview"></canvas>
+          <div class="items" id="itemLayer" hidden></div>
+          <div class="paper__unprinted" id="unprinted" hidden></div>
+          <div class="paper__line" id="headline" hidden></div>
+          <div class="crop" id="cropBox" hidden></div>
+        </div>
+        <div class="roll__tear" aria-hidden="true"></div>
+      </div>
+
+      <p class="path__empty" id="pathEmpty">Nothing to print yet.</p>
+    </div>
+
+    <!-- terminal takes the stage in mode 6 -->
+    <div class="term" id="term" hidden>
+      <div class="term__log" id="termLog" aria-live="polite"></div>
+      <div class="term__inp">
+        <span class="term__prompt">&rsaquo;</span>
+        <input type="text" id="termInput" spellcheck="false" autocomplete="off"
+               placeholder="cus 09 08   ·   speed 3   ·   feed 85   ·   hex" disabled>
+      </div>
+    </div>
+
+    <!-- ink / length gauge -->
+    <div class="gauge" id="gauge" hidden>
+      <div class="gauge__bar"><span id="gaugeFill"></span></div>
+      <span class="gauge__txt" id="gaugeTxt"></span>
+    </div>
+  </main>
+
+  <!-- ── right: inspector ─────────────────────────────────────────────── -->
+  <aside class="pane pane--right">
+    <div class="pane__head">
+      <h2 class="pane__title">Inspector</h2>
+      <button class="chip chip--quiet" id="resetBtn" title="Put every control back to the house settings">Reset</button>
+    </div>
+
+    <div class="pane__scroll" id="inspector">
+
+      <!-- halftone -->
+      <section class="grp" data-when="image draw">
+        <div class="grp__head"><span class="lbl">Halftone</span></div>
+        <div class="segset segset--wrap" id="htSet" role="group" aria-label="Halftone">
+          <button data-v="atkinson" class="is-on">Atkinson</button>
+          <button data-v="floyd">Floyd</button>
+          <button data-v="bayer">Ordered</button>
+          <button data-v="threshold">Cutoff</button>
+        </div>
+        <p class="micro" id="htNote"></p>
+        <div class="ctl" id="threshCtl" hidden>
+          <span class="micro">Cutoff <b class="val" id="threshV">128</b></span>
+          <input type="range" id="thresh" min="1" max="255" value="128">
+        </div>
+      </section>
+
+      <!-- tone -->
+      <section class="grp" data-when="image draw">
+        <div class="grp__head">
+          <span class="lbl">Tone</span>
+          <button class="chip chip--quiet" id="toneReset">Reset</button>
+        </div>
+        <div class="ctl">
+          <span class="micro">Brightness <b class="val" id="brightV">0</b></span>
+          <input type="range" id="bright" min="-100" max="100" value="0">
+        </div>
+        <div class="ctl">
+          <span class="micro">Contrast <b class="val" id="contrastV">0</b></span>
+          <input type="range" id="contrast" min="-100" max="100" value="0">
+        </div>
+        <div class="ctl">
+          <span class="micro">Gamma <b class="val" id="gammaV">1.00</b></span>
+          <input type="range" id="gamma" min="0.2" max="3" step="0.05" value="1">
+        </div>
+        <label class="inline"><input type="checkbox" id="invert"> Invert</label>
+        <p class="micro">A thermal head has one ink and no midtone. Push contrast
+          before the halftone and the picture keeps its shape; leave it flat and
+          it turns to grey noise.</p>
+      </section>
+
+      <!-- geometry -->
+      <section class="grp" data-when="image">
+        <div class="grp__head"><span class="lbl">Geometry</span></div>
+        <div class="ctl">
+          <span class="micro">Rotate</span>
+          <div class="segset" id="rotSet" role="group" aria-label="Rotate">
+            <button data-v="0" class="is-on">0&deg;</button>
+            <button data-v="90">90&deg;</button>
+            <button data-v="180">180&deg;</button>
+            <button data-v="270">270&deg;</button>
+          </div>
+        </div>
+        <div class="fieldrow">
+          <label class="inline"><input type="checkbox" id="flipH"> Flip across</label>
+          <label class="inline"><input type="checkbox" id="flipV"> Flip down</label>
+        </div>
+        <p class="micro" id="geoNote"></p>
+      </section>
+
+      <!-- quote: type -->
+      <section class="grp" data-when="quote" hidden>
+        <div class="grp__head"><span class="lbl">Typeface</span></div>
+        <select id="qFont"></select>
+        <div class="fieldrow">
+          <button class="chip chip--quiet" id="qSystem">System fonts</button>
+          <button class="chip chip--quiet" id="qFontFile">Load font file</button>
+        </div>
+        <input class="search" id="qFontManual" type="text" placeholder="…or type a family name">
+        <p class="micro">Two opposite kinds of face survive bloom: heavy monoline
+          (Arial Black, Courier New Bold), which has nothing thin to eat, and
+          deliberately irregular (Special Elite), where the texture hides the
+          damage. What fails is the refined middle. Weight beats size &mdash; Bold
+          at 64 px beat the same face Regular at 96.</p>
+      </section>
+
+      <!-- quote: composition -->
+      <section class="grp" data-when="quote" hidden>
+        <div class="grp__head"><span class="lbl">Composition</span></div>
+        <div class="ctl">
+          <span class="micro">Size <b class="val" id="qSizeV">40</b> px</span>
+          <input type="range" id="qSize" min="8" max="200" value="40">
+        </div>
+        <div class="ctl">
+          <span class="micro">Line height <b class="val" id="qLhV">1.20</b></span>
+          <input type="range" id="qLh" min="0.7" max="2.2" step="0.05" value="1.2">
+        </div>
+        <div class="ctl">
+          <span class="micro">Margin across <b class="val" id="qMxV">8</b>%</span>
+          <input type="range" id="qMx" min="0" max="29" value="8">
+        </div>
+        <div class="ctl">
+          <span class="micro">Margin down <b class="val" id="qMyV">8</b>%</span>
+          <input type="range" id="qMy" min="0" max="29" value="8">
+        </div>
+        <div class="ctl">
+          <span class="micro">Align</span>
+          <div class="segset" id="qAlignSet" role="group" aria-label="Align">
+            <button data-v="left">Left</button>
+            <button data-v="center" class="is-on">Centre</button>
+            <button data-v="right">Right</button>
+          </div>
+        </div>
+        <div class="ctl">
+          <span class="micro">Vertical</span>
+          <div class="segset" id="qVAlignSet" role="group" aria-label="Vertical">
+            <button data-v="top">Top</button>
+            <button data-v="middle" class="is-on">Middle</button>
+            <button data-v="bottom">Bottom</button>
+          </div>
+        </div>
+        <label class="inline"><input type="checkbox" id="qBorder"> Cut guide border</label>
+      </section>
+
+      <!-- quote: ink -->
+      <section class="grp" data-when="quote" hidden>
+        <div class="grp__head"><span class="lbl">Ink</span></div>
+        <div class="ctl">
+          <span class="micro">Cutoff <b class="val" id="qThreshV">128</b></span>
+          <input type="range" id="qThresh" min="1" max="255" value="128">
+        </div>
+        <div class="ctl">
+          <span class="micro">Bolden <b class="val" id="qBoldV">0.00</b> dots</span>
+          <input type="range" id="qBold" min="0" max="4" step="0.25" value="0">
+        </div>
+        <p class="micro">Glyphs are rasterised from the outline at 4&times; and
+          resolved down, so cutoff 128 is the outline exactly: a dot inks when
+          the outline covers more than half of it. Bolden widens every stem
+          geometrically instead, which is the better tool below about 40 px.
+          Try 0.5&ndash;1 on slab and serif faces.</p>
+      </section>
+
+      <!-- compose: the selected object -->
+      <section class="grp" data-when="draw" hidden>
+        <div class="grp__head">
+          <span class="lbl">Selection</span>
+          <button class="chip chip--quiet" id="cDelete" hidden>Delete</button>
+        </div>
+        <p class="micro" id="cNone">Nothing selected. Click something on the page.</p>
+
+        <div class="stack" id="cTextCtls" hidden>
+          <textarea id="cTextVal" rows="3" spellcheck="false" aria-label="Text"></textarea>
+          <div class="ctl">
+            <span class="micro">Typeface</span>
+            <select id="cFont"></select>
+          </div>
+          <div class="ctl">
+            <span class="micro">Size <b class="val" id="cSizeV">44</b> px</span>
+            <input type="range" id="cSize" min="8" max="220" value="44">
+          </div>
+          <div class="ctl">
+            <span class="micro">Bolden <b class="val" id="cBoldV">0.00</b> dots</span>
+            <input type="range" id="cBold" min="0" max="4" step="0.25" value="0">
+          </div>
+          <div class="ctl">
+            <span class="micro">Align</span>
+            <div class="segset" id="cAlign" role="group" aria-label="Align">
+              <button data-v="left">Left</button>
+              <button data-v="center" class="is-on">Centre</button>
+              <button data-v="right">Right</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="stack" id="cImageCtls" hidden>
+          <label class="inline"><input type="checkbox" id="cInvert"> Invert this picture</label>
+          <p class="micro">Inverting one picture leaves the rest of the page alone,
+            so a white-on-black panel can sit beside black-on-white type.</p>
+        </div>
+
+        <div class="ctl" id="cRotCtl" hidden>
+          <span class="micro">Rotate</span>
+          <div class="segset" id="cRot" role="group" aria-label="Rotate">
+            <button data-v="0" class="is-on">0&deg;</button>
+            <button data-v="90">90&deg;</button>
+            <button data-v="180">180&deg;</button>
+            <button data-v="270">270&deg;</button>
+          </div>
+        </div>
+        <div class="ctl" id="cWidthCtl" hidden>
+          <span class="micro"><span id="cWLbl">Width</span> <b class="val" id="cWV">380</b> dots</span>
+          <input type="range" id="cW" min="24" max="576" value="380">
+        </div>
+        <div class="fieldrow" id="cOrder" hidden>
+          <button class="chip chip--quiet" id="cCentre">Centre</button>
+          <button class="chip chip--quiet" id="cFront">To front</button>
+          <button class="chip chip--quiet" id="cBack">To back</button>
+        </div>
+      </section>
+
+      <!-- text -->
+      <section class="grp" data-when="text" hidden>
+        <div class="grp__head"><span class="lbl">Type</span></div>
+        <div class="ctl">
+          <span class="micro">Size</span>
+          <select id="txtSize">
+            <option value="16">16 px &mdash; 36 characters</option>
+            <option value="24">24 px &mdash; 24 characters</option>
+            <option value="32" selected>32 px &mdash; 18 characters</option>
+            <option value="48">48 px &mdash; 12 characters</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- printer: always -->
+      <section class="grp grp--printer">
+        <div class="grp__head">
+          <span class="lbl">Printer</span>
+          <span class="micro" id="printerHouse">house: 10 / 3 / 6</span>
+        </div>
+        <div class="ctl">
+          <span class="micro">Density <b class="val" id="densityV">10</b></span>
+          <input type="range" id="density" min="1" max="15" value="10">
+        </div>
+        <div class="ctl">
+          <span class="micro">Speed <b class="val" id="speedV">3</b></span>
+          <input type="range" id="speed" min="1" max="5" value="3">
+        </div>
+        <div class="ctl">
+          <span class="micro">Feed after <b class="val" id="feedV">150</b> lines</span>
+          <input type="range" id="feed" min="0" max="300" value="150">
+        </div>
+        <div class="ctl">
+          <label class="micro"><input type="checkbox" id="legacySender"> Legacy per-frame sender</label>
+        </div>
+        <p class="micro">Prints are streamed as one job, which keeps the motor
+          running continuously. The legacy sender keeps six frames in flight and
+          waits on acknowledgements — slower and it stutters, but it reports which
+          frame the printer rejected, and it is the only path that shows live
+          telemetry. Only turn it on to diagnose a bad print.</p>
+      </section>
+
+      <!-- gatt readout -->
+      <section class="grp" data-when="term" hidden>
+        <div class="grp__head"><span class="lbl">GATT</span></div>
+        <div id="gattOut" class="gatt"><p class="micro">Connect, then read the services.</p></div>
+      </section>
+
+    </div>
+  </aside>
+
+  <!-- ── log drawer ───────────────────────────────────────────────────── -->
+  <footer class="drawer" id="drawer" data-open="false">
+    <button class="drawer__tab" id="drawerTab" aria-expanded="false" aria-controls="logOut">
+      <span class="drawer__caret" aria-hidden="true">&#9656;</span>
+      <span class="drawer__label">Log</span>
+      <span class="drawer__last" id="drawerLast"></span>
+    </button>
+    <div class="drawer__prog" id="progWrap" hidden>
+      <div class="drawer__progbar"><span id="progFill"></span></div>
+      <span class="drawer__pct" id="progPct">0%</span>
+    </div>
+    <button class="chip chip--quiet drawer__clear" id="logClear">Clear</button>
+    <div class="drawer__body" id="logOut" aria-live="polite"></div>
+  </footer>
+</div>
+
+<!-- ── dialogs ────────────────────────────────────────────────────────── -->
+<dialog id="confirmDlg" class="dlg">
+  <form method="dialog">
+    <h3 id="confirmTitle">Print</h3>
+    <div id="confirmBody" class="dlg__body"></div>
+    <menu>
+      <button value="cancel" class="chip chip--quiet" id="confirmCancel">Cancel</button>
+      <button value="ok" class="btn btn--print" id="confirmOk">Print</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="fontDlg" class="dlg">
+  <form method="dialog">
+    <h3>System fonts</h3>
+    <p class="micro" id="fontDlgNote"></p>
+    <input class="search" id="fontSearch" type="search" placeholder="Search installed fonts">
+    <ul class="syslist" id="fontList"></ul>
+    <menu><button value="cancel" class="chip chip--quiet">Close</button></menu>
+  </form>
+</dialog>
+
+<input type="file" id="imageFileInput" accept="image/*,.pbm" hidden>
+<input type="file" id="fontFileInput" accept=".ttf,.otf,.woff,.woff2" hidden>
+<input type="file" id="pageFileInput" accept=".json,application/json" hidden>
+
+<div class="veil" id="dropVeil" hidden><span>Drop an image</span></div>
+
+<script src="src/protocol.js"></script>
+<script src="src/ble.js"></script>
+<script src="src/raster.js"></script>
+<script src="src/ui.js"></script>
+<script src="src/doc.js"></script>
+<script src="src/card.js"></script>
+<script src="src/compose.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>

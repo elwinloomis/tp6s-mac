@@ -1,0 +1,13 @@
+#!/bin/bash
+# Run tp6s_tool.py using this machine's venv. Usage: ./tp6 scan | print | image ...
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+VENV="$HOME/.venvs/tp6s"
+
+if [ ! -x "$VENV/bin/python" ] || \
+   ! "$VENV/bin/python" -c 'import bleak, PIL' >/dev/null 2>&1; then
+    echo "Runtime missing or incomplete — running setup.sh first ..."
+    "$SCRIPT_DIR/setup.sh" || exit 1
+fi
+
+# -u so `./tp6 serve` logs arrive live even when stdout is piped or backgrounded
+exec "$VENV/bin/python" -u "$SCRIPT_DIR/tp6s_tool.py" "$@"

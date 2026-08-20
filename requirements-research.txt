@@ -1,0 +1,2 @@
+-r requirements-pdf.txt
+pyobjc-framework-IOBluetooth==12.2.2

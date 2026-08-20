@@ -1,0 +1,777 @@
+/* ============================================================================
+   TP6-S
+
+   A bench in daylight. Neutral machine greys, hairline rules, near-black
+   text, and one lit object: a strip of thermal paper running down the centre
+   of the stage. That strip is the actual-size preview, the progress bar and
+   the paper gauge all at once, and while a job runs it fills downward from
+   the head the way the real one does.
+
+   The stage sits a shade darker than the panes around it. That is not
+   decoration -- everything this tool makes is pure black on white with no
+   midtone, and white paper on a white background gives you nothing to judge
+   the edges against.
+
+   Boldness is spent in one place: ember, the colour of a fired head element.
+   It marks what is live -- the selected mode, the print button, the head line
+   crossing the paper -- and nothing else. The diagnostic terminal is the one
+   dark object in the room, because a terminal has earned it.
+
+   No web fonts: the page has to run from a file:// URL with no server, so the
+   type is system faces only. The mono face carries every label and every
+   number, because almost everything here is a measurement.
+   ========================================================================= */
+
+:root {
+  --bed:     #f3f3f2;   /* panes, bar, drawer */
+  --press:   #d8d8d5;   /* the stage the paper lies on */
+  --raised:  #ffffff;   /* controls, and the paper itself */
+  --sunk:    #eaeae8;   /* inputs */
+  --rule:    #cbcbc7;   /* hairlines and dot rules */
+  --rule-hi: #8d8b86;   /* interactive control boundaries -- 3:1 and up */
+
+  --ember:   #b34a15;   /* a fired head element -- live state, nothing else */
+  --ember-2: #cc5a1d;
+  --link:    #10696d;   /* radio linked */
+  --fault:   #b3261e;
+
+  --type:    #1b1a19;
+  --type-2:  #4e4c49;
+  --type-3:  #6e6b67;
+
+  --dark:    #17171a;   /* the terminal, the one dark object */
+  --dark-2:  #c9c7c2;
+
+  --rad: 3px;
+  --pane-l: 264px;
+  --pane-r: 304px;
+  --bar: 46px;
+
+  --ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+
+  --mm: 3.78px;         /* px per paper millimetre; app.js keeps this true */
+
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+/* Several elements below set display, which beats the UA rule for [hidden].
+   One declaration keeps the attribute authoritative everywhere. */
+[hidden] { display: none !important; }
+
+html, body { height: 100%; margin: 0; overflow: hidden; }
+
+body {
+  background: var(--bed);
+  color: var(--type);
+  font: 13px/1.45 var(--ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* A dot rule: one row of head dots, wherever a divider is needed. */
+.grp + .grp, .pane__head {
+  background-image: repeating-linear-gradient(90deg, var(--rule) 0 1px, transparent 1px 3px);
+  background-repeat: no-repeat;
+  background-size: 100% 1px;
+}
+.grp + .grp { background-position: 0 0; }
+.pane__head { background-position: 0 100%; }
+
+/* ── shell ───────────────────────────────────────────────────────────── */
+
+.app {
+  display: grid;
+  grid-template-columns: var(--pane-l) minmax(0, 1fr) var(--pane-r);
+  grid-template-rows: var(--bar) minmax(0, 1fr) auto;
+  grid-template-areas:
+    "bar    bar    bar"
+    "left   stage  right"
+    "drawer drawer drawer";
+  height: 100%;
+}
+
+/* ── bar ─────────────────────────────────────────────────────────────── */
+
+.bar {
+  grid-area: bar;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 12px 0 16px;
+  background: var(--bed);
+  border-bottom: 1px solid var(--rule);
+}
+
+.bar__brand { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+
+/* The mark is set in the tool's own voice: mono, wide, with the separator
+   pulled out in ember -- a single lit element. */
+.brand__mark {
+  font: 600 14px/1 var(--mono);
+  letter-spacing: 0.22em;
+  white-space: nowrap;
+}
+.brand__mark i { color: var(--ember); font-style: normal; }
+
+.brand__sub {
+  font: 11px/1 var(--mono);
+  color: var(--type-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--raised);
+  font: 11px/1 var(--mono);
+  color: var(--type-2);
+  min-width: 0;
+}
+.link__dot { width: 7px; height: 7px; border-radius: 50%; background: #b9b7b2; flex: none; }
+.link[data-state="on"] { border-color: color-mix(in srgb, var(--link) 45%, var(--rule)); }
+.link[data-state="on"] .link__dot {
+  background: var(--link);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--link) 16%, transparent);
+}
+.link[data-state="busy"] { border-color: color-mix(in srgb, var(--ember) 50%, var(--rule)); }
+.link[data-state="busy"] .link__dot { background: var(--ember); animation: pulse 1.1s ease-in-out infinite; }
+.link__name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.link__telem { color: var(--type-3); white-space: nowrap; }
+.link__telem::before { content: "·"; margin: 0 6px; color: var(--rule); }
+
+@keyframes pulse { 50% { opacity: 0.35; } }
+
+.bar__actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+/* ── controls ────────────────────────────────────────────────────────── */
+
+.btn, .chip {
+  font: inherit;
+  color: var(--type);
+  background: var(--raised);
+  border: 1px solid var(--rule-hi);
+  border-radius: var(--rad);
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 90ms, border-color 90ms, color 90ms;
+}
+.btn:hover, .chip:hover { background: #ececea; border-color: var(--type-2); }
+.btn:active, .chip:active { background: #e0e0dd; }
+
+.chip { font-size: 11.5px; padding: 5px 10px; }
+.chip--quiet { background: transparent; color: var(--type-2); border-color: var(--rule); }
+.chip--quiet:hover { background: #ececea; color: var(--type); }
+
+/* The print button is the lit control: ember plate, white legend. */
+.btn--print {
+  background: var(--ember);
+  border-color: var(--ember);
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 6px 18px;
+}
+.btn--print:hover { background: var(--ember-2); border-color: var(--ember-2); }
+.btn--print:disabled { background: transparent; color: var(--type-3); border-color: var(--rule); }
+
+button:disabled { opacity: 0.55; cursor: default; }
+button:disabled:hover { background: transparent; border-color: var(--rule); color: var(--type-3); }
+
+:where(button, select, input, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 1px;
+}
+
+select, .search, textarea, input[type="text"] {
+  font: inherit;
+  width: 100%;
+  color: var(--type);
+  background: var(--raised);
+  border: 1px solid var(--rule-hi);
+  border-radius: var(--rad);
+  padding: 6px 8px;
+}
+select { cursor: pointer; font-size: 12px; }
+textarea { resize: vertical; font: 12px/1.55 var(--mono); }
+.search { font-size: 12px; }
+::placeholder { color: var(--type-3); }
+
+/* Sliders ship with bright chrome that fights a quiet instrument. Rebuilt to
+   sit at the same value as everything around them, going ember only while
+   the handle is actually being held. */
+input[type="range"] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 16px; background: transparent; cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px; background: var(--rule-hi); border-radius: 2px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px; margin-top: -5px;
+  border-radius: 50%; border: 0; background: var(--type-2);
+}
+input[type="range"]:hover::-webkit-slider-thumb { background: var(--type); }
+input[type="range"]:active::-webkit-slider-thumb { background: var(--ember); }
+input[type="range"]::-moz-range-track { height: 2px; background: var(--rule-hi); border-radius: 2px; }
+input[type="range"]::-moz-range-thumb {
+  width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--type-2);
+}
+
+input[type="checkbox"] {
+  -webkit-appearance: none; appearance: none;
+  flex: none; width: 14px; height: 14px; margin: 0;
+  border: 1px solid var(--rule-hi); border-radius: 2px;
+  background: var(--raised); cursor: pointer; position: relative;
+}
+input[type="checkbox"]:checked { background: var(--ember); border-color: var(--ember); }
+input[type="checkbox"]:checked::after {
+  content: ""; position: absolute; left: 4px; top: 1px;
+  width: 3px; height: 7px;
+  border: solid #fff; border-width: 0 1.6px 1.6px 0;
+  transform: rotate(42deg);
+}
+input[type="checkbox"]:hover { border-color: var(--type-3); }
+
+.inline {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 11.5px; color: var(--type-2); cursor: pointer;
+}
+
+.segset {
+  display: flex;
+  border: 1px solid var(--rule-hi);
+  border-radius: var(--rad);
+  overflow: hidden;
+  background: var(--raised);
+}
+.segset button {
+  flex: 1;
+  font: 11.5px/1 var(--ui);
+  color: var(--type-2);
+  background: transparent;
+  border: 0;
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.segset button + button { border-left: 1px solid var(--rule); }
+.segset button:hover { background: #ececea; color: var(--type); }
+.segset button.is-on { background: var(--ember); color: #fff; font-weight: 600; }
+.segset--sm button { padding: 4px 10px; font-size: 11px; }
+.segset--wrap { flex-wrap: wrap; }
+.segset--wrap button { flex: 1 0 40%; }
+.segset--wrap button:nth-child(3) { border-left: 0; }
+.segset--wrap button:nth-child(n+3) { border-top: 1px solid var(--rule); }
+
+.fieldrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+.micro { margin: 0; font-size: 11px; line-height: 1.5; color: var(--type-3); }
+.lbl {
+  font: 600 10px/1 var(--mono);
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--type-3);
+}
+.val { font-family: var(--mono); font-weight: 500; color: var(--type); font-style: normal; }
+code {
+  font: 11px/1.4 var(--mono);
+  background: var(--sunk); border: 1px solid var(--rule);
+  padding: 1px 5px; border-radius: 2px; color: var(--type-2);
+}
+
+/* ── panes ───────────────────────────────────────────────────────────── */
+
+.pane { display: flex; flex-direction: column; background: var(--bed); min-height: 0; }
+.pane--left  { grid-area: left;  border-right: 1px solid var(--rule); }
+.pane--right { grid-area: right; border-left: 1px solid var(--rule); }
+
+.pane__head { display: flex; align-items: center; gap: 8px; padding: 11px 12px 9px; flex: none; }
+.pane__title {
+  margin: 0; font: 600 10px/1 var(--mono); letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--type-3);
+}
+.pane__head .chip { margin-left: auto; }
+
+.pane__scroll { flex: 1; min-height: 0; overflow-y: auto; }
+
+/* ── mode list ───────────────────────────────────────────────────────── */
+
+.modes { display: flex; flex-direction: column; flex: none; padding: 6px 0 10px; }
+
+.mode {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  grid-template-rows: auto auto;
+  gap: 0 10px;
+  align-items: baseline;
+  text-align: left;
+  padding: 7px 12px;
+  background: transparent; border: 0;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  color: var(--type-2);
+}
+.mode:hover { background: #eaeae8; color: var(--type); }
+.mode.is-on { background: var(--raised); color: var(--type); border-left-color: var(--ember); }
+
+.mode__key {
+  grid-row: 1 / 3;
+  align-self: center;
+  font: 10px/16px var(--mono);
+  text-align: center;
+  color: var(--type-3);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  height: 17px;
+}
+.mode.is-on .mode__key { color: var(--ember); border-color: color-mix(in srgb, var(--ember) 45%, var(--rule)); }
+.mode__name { font-size: 12.5px; }
+.mode.is-on .mode__name { font-weight: 600; }
+.mode__note { font-size: 10.5px; color: var(--type-3); }
+
+/* ── source panels ───────────────────────────────────────────────────── */
+
+.src { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+
+.drop {
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  padding: 22px 14px;
+  border: 1px dashed var(--rule-hi);
+  border-radius: var(--rad);
+  text-align: center;
+  background: var(--raised);
+}
+.drop.is-over { border-color: var(--ember); background: #fbf1ea; }
+.drop__lead { margin: 0; font-size: 12.5px; color: var(--type); }
+.drop__sub  { margin: 0; font-size: 11px; color: var(--type-3); }
+
+.recipe { border-top: 1px solid var(--rule); padding-top: 10px; }
+.recipe h3 { margin: 0 0 5px; }
+
+.keys { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.keys li { display: flex; align-items: baseline; gap: 8px; }
+.keys span { font-size: 10.5px; color: var(--type-3); }
+
+/* ── inspector groups ────────────────────────────────────────────────── */
+
+.grp { display: flex; flex-direction: column; gap: 9px; padding: 12px; }
+.grp__head { display: flex; align-items: baseline; gap: 8px; }
+.grp__head .chip, .grp__head .micro { margin-left: auto; }
+
+.ctl { display: flex; flex-direction: column; gap: 4px; }
+.ctl .micro { display: flex; align-items: baseline; gap: 6px; color: var(--type-2); }
+.ctl .val { margin-left: auto; }
+
+/* The printer settings apply to every mode, so they are pulled out of the
+   contextual stack and given their own plate. */
+.grp--printer { background: var(--sunk); }
+
+.gatt { font: 11px/1.6 var(--mono); color: var(--type-2); word-break: break-all; }
+.gatt b { color: var(--ember); font-weight: 600; }
+.gatt .svc { color: var(--type); margin-top: 6px; }
+.gatt .chr { padding-left: 10px; color: var(--type-3); }
+
+/* ── the stage ───────────────────────────────────────────────────────── */
+
+.stage {
+  grid-area: stage;
+  display: flex; flex-direction: column;
+  min-width: 0; min-height: 0;
+  background: var(--press);
+}
+
+.stagebar {
+  flex: none;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--bed);
+}
+.spacer { flex: 1; }
+.readout {
+  font: 11px/1 var(--mono);
+  color: var(--type-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.readout b { color: var(--type-2); font-weight: 600; }
+.readout .warn { color: var(--ember); }
+
+/* The paper path: a shallow recess with the strip running down it. */
+.path {
+  flex: 1; min-height: 0;
+  overflow: auto;
+  padding: 26px 20px 40px;
+  display: flex;
+  justify-content: center;
+  position: relative;
+  box-shadow: inset 0 1px 4px #0000001a;
+}
+
+.path__ruler {
+  align-self: stretch;
+  width: 30px; flex: none;
+  margin-right: 14px;
+  /* A 1 mm tick pitch with a longer mark every 10 mm, offset to start at the
+     first printed line rather than at the top of the pane. */
+  background-image:
+    repeating-linear-gradient(to bottom, var(--rule-hi) 0 1px, transparent 1px calc(var(--mm) * 5)),
+    repeating-linear-gradient(to bottom, var(--type-3) 0 1px, transparent 1px calc(var(--mm) * 10));
+  background-size: 8px 100%, 14px 100%;
+  background-position: right 0 top var(--ruler-top, 0px), right 0 top var(--ruler-top, 0px);
+  background-repeat: repeat-y;
+  position: relative;
+}
+.ruler__n {
+  position: absolute; right: 18px;
+  font: 9px/1 var(--mono); color: var(--type-3);
+  transform: translateY(-50%);
+}
+
+.roll { display: flex; flex-direction: column; align-items: stretch; flex: none; }
+
+/* The head: the slot the paper comes out of. */
+.roll__head {
+  height: 16px;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(#fbfbfa, #cfcecb);
+  border: 1px solid var(--rule-hi);
+  border-bottom: 0;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.roll__head::after {
+  content: ""; position: absolute; left: 4px; right: 4px; bottom: 0; height: 2px;
+  background: #8f8d88;
+}
+.roll__headlabel {
+  font: 9px/1 var(--mono); letter-spacing: 0.1em;
+  color: var(--type-3); text-transform: uppercase;
+}
+
+.paper {
+  position: relative;
+  background: var(--raised);
+  box-shadow: 0 6px 18px #00000026, 0 0 0 1px #00000014;
+  line-height: 0;
+}
+.paper canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+
+/* Nearest-neighbour is right when a printer dot is drawn LARGER than a screen
+   pixel -- it shows the dot grid honestly instead of letting the browser
+   soften edges the head renders hard. It is wrong the moment the strip is
+   scaled down, because dropping every other row of a 1-bit bitmap invents
+   jaggies that are not in the file and chews type to pieces. app.js measures
+   the ratio and sets this class when the paper is smaller than its dots. */
+.paper.is-smooth canvas { image-rendering: auto; }
+
+/* Actual size deliberately drops back to smooth filtering: the browser's
+   downscale is the closest thing on screen to what the eye does with 0.085 mm
+   dots on paper. CSS mm assumes 96 px/inch -- close, not a ruler. */
+.paper.is-actual canvas { image-rendering: auto; }
+/* While marking a crop the stage shows the untouched source, which is a
+   continuous-tone picture and wants ordinary filtering. */
+.paper.is-crop canvas { image-rendering: auto; }
+
+/* The part not yet printed, and the head line crossing it. */
+.paper__unprinted {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: #ffffffe0;
+}
+.paper__line {
+  position: absolute; left: -3px; right: -3px; height: 2px;
+  background: var(--ember);
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--ember) 55%, transparent);
+}
+
+.roll__tear {
+  height: 7px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Cpath d='M0 0 L6 7 L12 0 Z' fill='%23ffffff'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  filter: drop-shadow(0 3px 3px #00000026);
+}
+
+.path__empty {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  margin: 0; font-size: 12px; color: var(--type-3);
+}
+
+/* Crop: the source at full contrast, with the dimming carried by the
+   rectangle itself so nothing is obscured until you start marking one. */
+.crop { position: absolute; inset: 0; cursor: crosshair; }
+.crop__box {
+  position: absolute;
+  outline: 1px solid var(--ember);
+  box-shadow: 0 0 0 9999px #ffffffb3;
+  background: transparent;
+}
+
+/* ── placed objects ─────────────────────────────────────────────────────── */
+
+/* The handles live in the DOM over the paper rather than being drawn into
+   the canvas, so they stay crisp at any zoom and never end up in the print. */
+.items { position: absolute; inset: 0; pointer-events: none; }
+.item {
+  position: absolute;
+  outline: 1px dashed color-mix(in srgb, var(--type-3) 70%, transparent);
+  cursor: move;
+}
+.item.is-on { outline: 1.5px solid var(--ember); }
+.item__grip {
+  position: absolute; right: -5px; bottom: -5px;
+  width: 11px; height: 11px;
+  background: var(--ember);
+  border: 1px solid #fff;
+  border-radius: 2px;
+  cursor: nwse-resize;
+  display: none;
+}
+.item.is-on .item__grip { display: block; }
+
+.objlist {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column;
+  border: 1px solid var(--rule); border-radius: var(--rad);
+  background: var(--raised);
+  max-height: 190px; overflow-y: auto;
+}
+.objlist:empty { display: none; }
+.objlist li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px; cursor: pointer; font-size: 11.5px;
+  color: var(--type-2);
+}
+.objlist li + li { border-top: 1px solid var(--rule); }
+.objlist li:hover { background: #ececea; }
+.objlist li.is-on { background: #fbf1ea; color: var(--type); }
+.objlist .kind {
+  font: 9px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--type-3); flex: none;
+}
+.objlist li.is-on .kind { color: var(--ember); }
+.objlist .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.objlist .x { border: 0; background: none; color: var(--type-3); cursor: pointer; padding: 0 2px; }
+.objlist .x:hover { color: var(--fault); }
+
+.stack { display: flex; flex-direction: column; gap: 9px; }
+
+/* ── gauge ───────────────────────────────────────────────────────────── */
+
+.gauge {
+  flex: none;
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--rule);
+  background: var(--bed);
+}
+.gauge__bar {
+  flex: 1; height: 4px; border-radius: 2px; background: #c4c4c1;
+  overflow: hidden; position: relative;
+}
+/* The throttle line: past about this much ink the head starts pausing. */
+.gauge__bar::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 65%;
+  width: 1px; background: var(--type-3);
+}
+.gauge__bar span { display: block; height: 100%; background: var(--type-2); transition: width 120ms; }
+.gauge__bar span.warn { background: var(--ember); }
+.gauge__txt { font: 11px/1 var(--mono); color: var(--type-3); white-space: nowrap; }
+
+/* ── terminal ────────────────────────────────────────────────────────── */
+
+.term { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 12px; gap: 8px; }
+.term__log {
+  flex: 1; min-height: 0; overflow-y: auto;
+  background: var(--dark);
+  border-radius: var(--rad); padding: 10px 12px;
+  font: 11.5px/1.75 var(--mono);
+  color: var(--dark-2);
+  white-space: pre-wrap; word-break: break-all;
+}
+.term__log .tx { color: #f0904a; }
+.term__log .rx { color: #6fc7ca; }
+.term__log .er { color: #f08076; }
+.term__inp { display: flex; align-items: center; gap: 8px; }
+.term__prompt { font: 13px/1 var(--mono); color: var(--ember); }
+.term__inp input { font: 12px/1 var(--mono); }
+
+/* ── log drawer ──────────────────────────────────────────────────────── */
+
+.drawer {
+  grid-area: drawer;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  background: var(--bed);
+  border-top: 1px solid var(--rule);
+}
+.drawer__tab {
+  display: flex; align-items: center; gap: 9px;
+  min-width: 0; padding: 6px 12px;
+  background: transparent; border: 0; cursor: pointer;
+  color: var(--type-2); text-align: left;
+}
+.drawer__tab:hover { color: var(--type); }
+.drawer__caret { font-size: 9px; color: var(--type-3); transition: transform 120ms; }
+.drawer[data-open="true"] .drawer__caret { transform: rotate(90deg); }
+.drawer__label {
+  font: 600 10px/1 var(--mono); letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--type-3);
+}
+.drawer__last {
+  font: 11px/1 var(--mono); color: var(--type-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.drawer__last.er { color: var(--fault); }
+
+.drawer__prog { display: flex; align-items: center; gap: 8px; padding: 0 6px; }
+.drawer__progbar { width: 160px; height: 3px; background: #c4c4c1; border-radius: 2px; overflow: hidden; }
+.drawer__progbar span { display: block; height: 100%; width: 0; background: var(--ember); transition: width 160ms; }
+.drawer__pct { font: 10px/1 var(--mono); color: var(--type-2); min-width: 30px; text-align: right; }
+.drawer__clear { margin-right: 10px; }
+
+.drawer__body {
+  grid-column: 1 / -1;
+  height: 0; overflow: hidden;
+  font: 11px/1.7 var(--mono);
+  color: var(--type-2);
+  padding: 0 12px;
+  border-top: 1px solid transparent;
+  background: var(--sunk);
+}
+.drawer[data-open="true"] .drawer__body {
+  height: 190px; overflow-y: auto;
+  padding: 8px 12px;
+  border-top-color: var(--rule);
+}
+.drawer__body div { word-break: break-all; }
+.drawer__body .er { color: var(--fault); }
+.drawer__body .wa { color: var(--ember); }
+.drawer__body .dim { color: var(--type-3); }
+
+/* ── header menu ─────────────────────────────────────────────────────── */
+
+/* Native popover: the UA centres it in the viewport by default. app.js sets
+   left/top in px on open, so the panel must get out of that default's way
+   rather than fight it. */
+.menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  min-width: 220px;
+  padding: 5px 0;
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--rad);
+  box-shadow: 0 10px 28px #00000026, 0 0 0 1px #00000012;
+}
+/* A menu, not a modal: nothing behind it should dim. */
+.menu::backdrop { background: transparent; }
+
+.menu__item {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--type);
+  font: 13px/1 var(--ui);
+  text-align: left;
+  cursor: pointer;
+  transition: background 90ms;
+}
+.menu__item:hover, .menu__item:focus-visible { background: #ececea; }
+.menu__item:disabled, .menu__item:disabled:hover { background: transparent; opacity: 0.55; cursor: default; }
+
+/* A quiet hint, never competing with the label. */
+.menu__item kbd { font: 11px/1 var(--mono); color: var(--type-3); }
+
+/* Groups document actions above the one-way PNG export. */
+.menu__rule { margin: 4px 0; border: 0; border-top: 1px solid var(--rule); }
+
+.menu__caret { margin-left: 4px; font-size: 9px; color: var(--type-3); }
+
+/* ── dialogs ─────────────────────────────────────────────────────────── */
+
+.dlg {
+  border: 1px solid var(--rule-hi);
+  border-radius: 5px;
+  background: var(--bed);
+  color: var(--type);
+  padding: 18px 20px;
+  width: min(440px, 92vw);
+  box-shadow: 0 24px 60px #00000038;
+}
+.dlg::backdrop { background: #1b1a1966; }
+.dlg h3 {
+  margin: 0 0 10px; font: 600 11px/1 var(--mono);
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--type-3);
+}
+.dlg__body { display: grid; gap: 4px; font: 12px/1.7 var(--mono); color: var(--type-2); margin-bottom: 16px; }
+.dlg__body b { color: var(--type); font-weight: 600; }
+.dlg__body .warn {
+  color: var(--ember); font-family: var(--ui); font-size: 11.5px;
+  line-height: 1.5; margin: 6px 0 0;
+}
+.dlg menu { display: flex; justify-content: flex-end; gap: 8px; margin: 0; padding: 0; }
+
+.syslist {
+  list-style: none; margin: 8px 0 14px; padding: 0;
+  max-height: 300px; overflow-y: auto;
+  border: 1px solid var(--rule); border-radius: var(--rad);
+  background: var(--raised);
+}
+.syslist li { padding: 6px 10px; cursor: pointer; font-size: 13px; }
+.syslist li + li { border-top: 1px solid var(--rule); }
+.syslist li:hover { background: #ececea; }
+
+.veil {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  background: #f3f3f2e6;
+  font: 600 13px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ember);
+}
+.veil span { border: 1px dashed var(--ember); padding: 40px 60px; border-radius: 4px; }
+
+/* Scrollbars: the stock ones are heavier than anything else on the page. */
+* { scrollbar-color: var(--rule-hi) transparent; scrollbar-width: thin; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: #b8b6b1; border-radius: 5px;
+  border: 3px solid transparent; background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--rule-hi); background-clip: content-box; }
+
+/* ── narrow ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 1180px) {
+  :root { --pane-l: 216px; --pane-r: 264px; }
+  .mode__note { display: none; }
+}
+
+@media (max-width: 900px) {
+  html, body { overflow: auto; }
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--bar) auto auto auto auto;
+    grid-template-areas: "bar" "left" "stage" "right" "drawer";
+    height: auto; min-height: 100%;
+  }
+  .pane--left, .pane--right { border: 0; border-bottom: 1px solid var(--rule); }
+  .stage { min-height: 60vh; }
+  .modes { flex-direction: row; flex-wrap: wrap; }
+  .mode { flex: 1 0 33%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

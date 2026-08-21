@@ -10,7 +10,8 @@ losslessly, without the vendor app.
   </a>
 </p>
 
-<p align="center"><sub>A full-width image going out over Bluetooth — <a href="media/tp6s-demo.mp4">watch the whole print</a>.</sub></p>
+<p align="center"><sub>A full-width image going out over Bluetooth, at the printer's own speed.<br>
+The whole 47-second print: <a href="media/tp6s-demo.mp4">media/tp6s-demo.mp4</a>.</sub></p>
 
 The TP6-S is a 300 dpi, 58 mm Bluetooth pocket printer, normally locked to
 the "xlife-pro" phone app. The same printer is resold under LFPERT, VOZY and

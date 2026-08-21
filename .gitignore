@@ -30,3 +30,6 @@ Thumbs.db
 out/
 prints/
 /tp6_testpattern.png
+
+# Source video for the README demo (compressed copy lives in media/)
+/Printer480.mov

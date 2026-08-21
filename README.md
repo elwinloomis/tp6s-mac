@@ -3,6 +3,15 @@
 Print from a Mac to a Vretti TP6-S pocket thermal printer — smoothly,
 losslessly, without the vendor app.
 
+<p align="center">
+  <a href="media/tp6s-demo.mp4">
+    <img src="media/tp6s-demo.gif" width="280"
+         alt="A Mac sends a woodcut-style illustration to the TP6-S over Bluetooth. The printer feeds pink thermal paper as the image appears on it, then the finished strip is torn off and held up beside the screen.">
+  </a>
+</p>
+
+<p align="center"><sub>A full-width image going out over Bluetooth — <a href="media/tp6s-demo.mp4">watch the whole print</a>.</sub></p>
+
 The TP6-S is a 300 dpi, 58 mm Bluetooth pocket printer, normally locked to
 the "xlife-pro" phone app. The same printer is resold under LFPERT, VOZY and
 Xprinter names. If yours advertises as `TP6` over Bluetooth, this talks to

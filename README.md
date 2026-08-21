@@ -18,6 +18,10 @@ the "xlife-pro" phone app. The same printer is resold under LFPERT, VOZY and
 Xprinter names. If yours advertises as `TP6` over Bluetooth, this talks to
 it.
 
+The unit in the video is the vretti TP6-S, ASIN
+[B0BYYH7T93](https://www.amazon.com/dp/B0BYYH7T93), about $10 at the time of
+writing. Plain link, no affiliate tag. The ASIN will outlast the URL.
+
 Requires macOS, an internet connection for first-time setup, and Python 3.10
 or newer. The no-Python Web Bluetooth fallback needs Chrome or Edge.
 

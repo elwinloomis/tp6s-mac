@@ -1,6 +1,15 @@
 #!/bin/bash
 # Run tp6s_tool.py using this machine's venv. Usage: ./tp6 scan | print | image ...
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Resolve symlinks before locating the project. $0 is the path used to invoke
+# us, so for a symlink on PATH it is the link, not this file — without this the
+# launcher would look for tp6s_tool.py next to the symlink and fail.
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 VENV="$HOME/.venvs/tp6s"
 
 if [ ! -x "$VENV/bin/python" ] || \

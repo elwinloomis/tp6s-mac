@@ -69,6 +69,27 @@ Nothing goes into system locations, and nothing goes into this folder:
   you ran the installer. `./tools/install_pdf_service.sh --uninstall`
   removes it.
 
+### Running it from anywhere
+
+`./tp6` works from this folder. To get a global `tp6`, symlink the launcher
+onto your `PATH` — symlink, do not copy, since it locates `tp6s_tool.py`
+relative to itself:
+
+```console
+ln -s "$PWD/tp6" ~/.local/bin/tp6
+```
+
+The launcher walks the symlink chain before working out where it lives, so a
+link at any depth resolves correctly. It does not change the working
+directory, so `tp6 image photo.jpg` still resolves against where you are, and
+`tp6 gui` still finds `web/` because the tool locates its own assets.
+
+If your shell config is in git and you want the command on more than one Mac,
+note that a symlink is machine-local and will not travel with it. Put a
+wrapper inside the dotfiles repository instead, and export its directory from
+`.zshenv` rather than `.zshrc` — zsh reads `.zshrc` only for interactive
+shells, so a `PATH` set there is invisible to scripts and cron.
+
 ## Use
 
 **The browser tool** — `./tp6 gui`. Quote cards, images with four halftones,

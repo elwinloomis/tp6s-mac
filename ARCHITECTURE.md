@@ -69,6 +69,20 @@ adds the optional Quartz dependency. Exact tested versions are pinned in
 - `research/` — unsupported hardware experiments and generated specimens.
 - `CONTRIBUTING.md` — extension recipes and hardware-test expectations.
 
+## Invoking the launcher
+
+`tp6` finds `tp6s_tool.py`, `setup.sh` and `web/` relative to its own
+location, and resolves any symlink chain before doing so. That is what lets
+the launcher be symlinked onto `PATH` while the project stays where it is.
+`$0` alone is not enough: it holds the path used to invoke the script, which
+for a symlink is the link rather than the file, so the project would be
+looked for beside the link.
+
+The launcher deliberately does not change the working directory. Relative
+arguments belong to the caller, so `tp6 image photo.jpg` means the photo next
+to the user. Anything the tool needs for itself is resolved from `__file__`
+instead.
+
 ## Reliability invariants
 
 - One printer conversation at a time.

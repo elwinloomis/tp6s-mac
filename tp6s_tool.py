@@ -709,6 +709,14 @@ def _ack_temp(raw):
     return pay[6] if len(pay) >= 7 else None
 
 
+def _ack_payload(raw):
+    """The payload bytes of a CUS frame from the printer, or b''."""
+    if len(raw) < 10 or raw[0] != 0x64:
+        return b""
+    n = raw[3] | (raw[4] << 8)
+    return bytes(raw[5:5 + n])
+
+
 def _ack_stats(raw):
     """Decode image ACK stats (8 byte payload):
     [V_lo][V_hi][flags][0x10][density echo][?][temp (°F ?)][battery %]
@@ -905,6 +913,18 @@ async def _do_print(addr, data, width_bytes, height, density=10, speed=2, feed=1
                       f"at 90 lines/s, delivery took {dt:.1f}s):")
                 for ts, raw in heard:
                     print(f"    {ts - t0:6.2f}  {_ack_decode(raw)}")
+                # One sample, 2026-09-04: a run that lost a band (fox at a
+                # forced barrier of 32, 13.8 KB/s) carried 0x4B in the flags
+                # byte where every clean run carried 0x0B. Another lossy run
+                # (barrier 16) carried 0x0B, so a clean byte proves nothing.
+                # If bit 0x40 is the printer saying it dropped data, this is
+                # the warning the August notes wished for. Say so, but as a
+                # suspicion.
+                if any(len(f) >= 3 and f[2] & 0x40 for f in
+                       (_ack_payload(raw) for _, raw in heard)):
+                    print("  WARNING: a status frame carried flag 0x40. The one "
+                          "time that was seen, the print had lost a band. "
+                          "Check this one against the preview.")
                 try:
                     await client.stop_notify(n_u)
                 except Exception:

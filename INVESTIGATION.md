@@ -150,8 +150,22 @@ unbroken, two stops heard (lines ~1070 and ~1680, both in the log as empty
 reports). Delivery averaged 9.5 KB/s against a requested 11: the loop was
 saturated against the radio, and the printer, eating a little over 10, caught
 up every five seconds or so. On this link the remaining stutter on long jobs
-is the radio's ceiling, not a pacing number. Whether a barrier above 8 raises
-that ceiling is unmeasured.
+is the radio's ceiling, not a pacing number.
+
+Measured next, fox at forced barriers for the whole job: every 16th write
+acknowledged delivered 11.9 KB/s — no faster than 8 — and lost part of the
+image; every 32nd delivered 13.8 KB/s and lost a band. So the link tops out
+near 12 KB/s, and 8 is the only interval proven lossless, and only for the
+head start: the 51 KB page that morning lost its tail at barrier 8 run over
+a whole job. The printer eats a little over 10; the gap between that and the
+paced rate the link sustains (~9.5) is the stutter that remains on a long
+job.
+
+On the barrier-32 run the mid-print status frame carried `4B` in its flags
+byte where every clean run that day carried `0B`. The barrier-16 run also
+lost lines and carried the ordinary `0B`, so a clean flags byte proves
+nothing. One sample for, one against: the helper prints a warning when it
+sees bit `0x40`, worded as a suspicion, and nothing more is claimed.
 
 The refill burst is worth less than it looks: the fast barrier is only about
 12 KB/s, so against a printer eating 10 it nets a couple of KB of cushion.

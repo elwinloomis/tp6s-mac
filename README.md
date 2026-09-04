@@ -125,9 +125,9 @@ Web Bluetooth. It works but stutters. It is the fallback.
 Deliver under ~6 KB/s and the motor stops and starts; the print bands.
 Deliver too far over it and the printer's buffer silently overflows; a strip
 vanishes from the middle of the page. This toolkit streams each job as one
-buffer with periodic write barriers — the narrow path between those — and
-above ~1,000 lines it slows to the printer's own pace, because a stutter you
-can see beats a hole you cannot.
+buffer with periodic write barriers — the narrow path between those — for
+a short head start, then holds every job to the printer's own pace, because a
+stutter you can see beats a hole you cannot.
 
 ## Getting good prints
 

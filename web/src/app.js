@@ -20,12 +20,14 @@
   const card = window.TP6.card;
   const CO = window.TP6.compose;
 
-  // House settings, proven on the physical printer: density 10, speed 3,
+  // House settings, proven on the physical printer: density 10, speed 2,
   // 24-line frames, six frames in flight. A bare print with these untouched
-  // comes out tuned.
+  // comes out tuned. (Speed 2 since 2026-09-04: the printer eats bytes at
+  // the same rate as at 3, and the motor runs smoother. A saved speed 3 from
+  // before then stays until the slider is moved.)
   const DEFAULTS = {
     mode: 'image', zoom: 'fit',
-    density: 10, speed: 3, feed: 150, window: 6, legacy: false, chunk: 244,
+    density: 10, speed: 2, feed: 150, window: 6, legacy: false, chunk: 244,
 
     halftone: 'atkinson', threshold: 128,
     bright: 0, contrast: 0, gamma: 1, invert: false,

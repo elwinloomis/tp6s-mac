@@ -47,7 +47,7 @@ Run it by hand for testing:
     ~/.venvs/tp6s/bin/python tools/pdf_service.py --probe anything
 
 Options are for testing only. From the print dialog there is no UI, and the
-house settings (density 10, speed 3, 24-line frames, feed 140) are what runs.
+house settings (density 10, speed 2, 24-line frames, feed 140) are what runs.
 """
 
 import base64
@@ -95,7 +95,7 @@ HELPER_URL   = "http://127.0.0.1:8776"
 HELPER_PROBE_TIMEOUT = 1.0
 HELPER_PRINT_TIMEOUT = 600.0
 
-DENSITY, SPEED, FEED, LINES_PER_FRAME = 10, 3, 140, 24   # house settings
+DENSITY, SPEED, FEED, LINES_PER_FRAME = 10, 2, 140, 24   # house settings
 
 # Where the log may live, in order of preference. More than one candidate
 # because **the print system runs us in a sandbox**: measured on Darwin 25,

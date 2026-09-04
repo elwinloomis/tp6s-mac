@@ -80,14 +80,94 @@ about 133 KB lost a visible band from its middle even though:
 - reported temperature stayed at 70; and
 - the motor did not pause.
 
-The failure appeared only above roughly 73 KB on the tested printer. The host
-can enqueue near 11 KB/s while the printer consumes near 6 KB/s, so a long job
-can silently fill the printer's internal buffer.
+The host can enqueue near 11 KB/s while the printer consumes near 6 KB/s, so
+a job can silently fill the printer's internal buffer. In August the failure
+had appeared only above roughly 73 KB, and the transport switched strategy on
+job size: fast barrier under that, every write acknowledged above it.
 
-The production transport therefore changes strategy by job size. Short jobs
-use the fast barrier interval. Above roughly 1,000 dot-lines, the interval is
-reduced and delivery is paced toward the printer's drain rate. Visible pauses
-are preferable to silently missing output.
+## The margin is not a size
+
+On 2026-09-04 a 709-line, 51 KB page printed short three times out of four
+at the fast interval — stopping a third of the way in, then two thirds, then
+whole, then two thirds again — while a 1,008-line, 73 KB page (`fox.png`,
+bigger and darker) printed whole between those runs. Same bytes every time;
+voltage flat, temperature 70, battery 77–98%.
+
+The status-frame timeline, stamped from the first write, showed what a short
+print is. Delivery finished at 4.3 s. The printer's last frame, with its
+flags byte changed from `0F` to `07`, came at 5.3 s — the moment two thirds
+of the page ends at 90 lines/s. The printer had not stalled; it had run out
+of lines. A frame cut midway ends the job rather than skipping a band, which
+is why the page stops dead instead of missing a strip.
+
+The same page kept 17 KB one run and 34 KB the next, so the buffer's margin
+varies from job to job — most plausibly the printer beginning to consume at
+different moments after the link comes up. That is the same flaw that sank
+the earlier modelled-lead attempt, and it means no byte threshold is safe.
+
+The production transport therefore no longer decides by job size. It bursts
+a fixed head start at the fast interval to give the printer a cushion, then
+holds delivery to a steady rate. The same page printed whole this way. Visible
+pauses are preferable to silently missing output.
+
+## The printer does say when it is empty
+
+Acknowledging every write after the head start delivered 6.5 KB/s, and the
+page still came out with six stutters. The timeline explained them. A 16 KB
+head start is 2.5 s of paper; the first mid-print status frame arrived at
+2.61 s, and one more with every stutter after. In a later run three stutters
+were heard and three frames logged, to the tenth of a second. The August
+note that streaming gets no per-frame signal stands, but it missed the one
+that matters: **a status frame arriving mid-stream is the printer reporting
+its buffer empty.** That is flow control, in the one direction that cannot
+overflow.
+
+Two more measurements fell out of the same afternoon:
+
+- A fed printer at speed 3 eats **9 to 10 KB/s**, not 6.5: from the empty
+  reports, 23 KB in its first 2.4 s and 28 KB in the next 3, the same on two
+  pages of very different tone. (A first figure of 8 counted the paper feed
+  as print time.)
+- Ack patterns do not interpolate. Every write acknowledged is 6.5 KB/s and
+  every other write 9.8 KB/s, but "two of every three" measured 6.7: the
+  radio quantises acknowledged writes to its connection interval.
+
+So the loop now paces by the clock. After the head start (12 KB, about 1.3 s
+of paper), writes go out one-acknowledged-in-four with short sleeps holding
+the average to an opening rate at the appetite (10 KB/s; 9.0 still left one
+stutter per page, at 39–49 KB in). Each empty
+report refills the cushion with another head-start-sized burst at the fast
+interval and raises the rate half a KB/s. The lead only grows from a buffer
+the printer has just said is empty, and the rate only rises after the printer
+has proved it can eat faster, so the surplus is never more than one step.
+A page whose appetite the opening rate cannot meet stutters once, not once a
+second.
+
+The refill burst is worth less than it looks: the fast barrier is only about
+12 KB/s, so against a printer eating 10 it nets a couple of KB of cushion.
+The head start, delivered before the printer gets going, is the cushion that
+counts; after it the rate step does the work.
+
+A frame also arrives at about 5.2 s after the first write in nearly every
+run, whatever the delivery is doing at the time, often carrying a lower
+voltage. It is probably a heartbeat, not an empty report. On a job still
+streaming at that moment the loop answers it with one unneeded burst and a
+half-KB/s step, which is bounded; a page of this size has finished delivery
+by then.
+
+One observation, one sample: on the fox print during which the paper ran
+out, the final status frame carried `81` in the fourth payload byte where
+every other frame that day carried `90`. Possibly the paper-out flag.
+
+The speed value is not a throughput dial. Fox at speed 2 ate the same
+10 KB/s and finished in the same time as at speed 3, and printed audibly
+smoother; speed 2 is the house default from 2026-09-04. Speeds 1, 4 and 5
+are unmeasured.
+
+The one case with no signal is a printer much slower than the opening rate
+on a long job: the surplus accumulates unreported. `TP6S_PACE_KBS` sets the opening rate,
+`TP6S_HEAD_KB` the cushion, and `TP6S_BARRIER` forces one interval for the
+whole job, for measuring.
 
 ## Bluetooth Classic SPP
 
@@ -162,7 +242,8 @@ When changing transport behaviour, test in this order:
 
 1. Run `node tools/ble_sim_test.js` without hardware.
 2. Print the generated staircase with short and long barrier intervals.
-3. Print a job below 1,000 lines and confirm continuous motion.
+3. Print a job of about 700 lines from a printer that has sat idle, and
+   confirm it reaches the bottom; then again immediately, warm.
 4. Print a job above 1,845 lines and inspect the entire middle for omissions.
 5. Record elapsed time, byte count, line count, barrier count, voltage and
    temperature.

@@ -26,7 +26,7 @@ Image options:
   --threshold N       Black/white threshold 1-255 (default 128, with --nodither)
   --rotate N          Rotation in degrees (e.g. 90 for landscape)
   --density N         Thermal density 1-15 (default 10; higher = darker)
-  --speed N           Speed 1-5 (default 3; lower = more heat)
+  --speed N           Speed 1-5 (default 2; lower = more heat)
   --legacy            Old per-frame ACK-gated sender (stuttering, slower).
                       Only useful for diagnosing which frame a printer rejects.
   --window N          Frames in flight, --legacy only (default 6; 1 = stop-and-
@@ -88,57 +88,73 @@ MAX_CHUNK_LINES = 8
 BLE_CHUNK_SZ    = 244
 INTER_CHUNK_MS  = 0.020
 # Every Nth BLE write uses write-WITH-response (see _stream_job). 8 was
-# measured on the test Mac and is lossless there FOR A SHORT JOB; the
-# size rule below is what decides whether a given job may use it.
+# measured on the test Mac and is lossless there FOR A SHORT BURST; the
+# head-start rule below decides how much of a job may go out this way.
 #
 # This knob was added while chasing the dropped bands, on a first guess that
 # the number was a property of the host's Bluetooth controller and so would
 # differ per Mac. It is not — the same Mac drops a long job and prints a
-# short one — so leave it alone in normal use and let SAFE_FAST_BYTES choose.
+# short one — so leave it alone in normal use and let HEAD_START_BYTES decide.
 # It stays because measuring the next such question needs a way to hold the
 # barrier still:
 #
 #     TP6S_BARRIER=1 ./tp6 gui          every write acknowledged, always
-#     TP6S_BARRIER=8 ./tp6 image big.png   full speed even on a long job,
+#     TP6S_BARRIER=8 ./tp6 image big.png   full speed for the whole job,
 #                                          i.e. reproduce the bug on purpose
 #
-# Setting it AT ALL disables the size rule, in both directions. 1 is the safe
-# floor: ~6.5 KB/s against ~6.5 KB/s consumed, so the motor may burp, but
-# nothing can be lost.
+# Setting it AT ALL disables the head start, in both directions: the forced
+# interval applies to every write of the job. 1 is the safe floor: ~6.5 KB/s
+# against ~6.5 KB/s consumed, so the motor may burp, but nothing can be lost.
 try:
     BARRIER_EVERY = max(1, int(os.environ.get("TP6S_BARRIER", "8")))
 except ValueError:
     BARRIER_EVERY = 8
 BARRIER_FORCED = "TP6S_BARRIER" in os.environ   # set by hand: never overridden
 
-# Long jobs must not be delivered at full speed. Measured on paper
-# 2026-08-19, printing the same artwork at two sizes:
+# A job must not be delivered at full speed for long. Measured on paper,
+# first 2026-08-19 (the same artwork at two sizes) and again 2026-09-04
+# (one 51 KB page, printed five times in one afternoon):
 #
 #    288 lines   21 KB   barrier 8   prints             (staircase, 2026-08-14)
-#   1008 lines   73 KB   barrier 8   prints             (fox.png, 2026-08-14)
-#   ~1000 lines  72 KB   barrier 8   prints
+#   1008 lines   73 KB   barrier 8   prints, again 09-04 (fox.png)
 #   1845 lines  133 KB   barrier 8   DROPS a band, every time, motor smooth
 #   1845 lines  133 KB   barrier 1   prints
+#    709 lines   51 KB   barrier 8   STOPS a third in; stops two thirds in;
+#                                    prints whole once — same bytes each time
+#    709 lines   51 KB   barrier 1   prints
 #
-# The telemetry rules out the printer struggling: across the failing job the
-# voltage held at 1.94-1.96 and the temperature never moved off 70, so this
-# is not the thermal/power throttle. The bytes never arrived.
+# The telemetry rules out the printer struggling: voltage flat, temperature
+# never off 70, battery 77-98%. The bytes never arrived. The barrier delivers
+# ~11-12 KB/s against ~6.5 KB/s consumed, and that surplus accumulates in the
+# printer's buffer, which has a bottom. On 09-04 the status timeline showed
+# where: the printer's "done" flag came at 5.3 s, exactly where two thirds of
+# the page ends at 90 lines/s, delivery having finished at 4.3 s. Everything
+# past the point the buffer filled went in the bin, and a frame cut midway
+# ends the job rather than skipping a band.
 #
-# The barrier delivers ~11 KB/s against ~6.5 KB/s consumed, and that surplus
-# accumulates somewhere — the printer's buffer, which has a bottom. Under
-# ~73 KB the whole job fits inside whatever margin exists; well past it, the
-# overflow is discarded in silence.
+# A byte-count rule (full speed under 73 KB) was the first answer, and it was
+# wrong: fox is bigger and darker than the 51 KB page and prints. The margin
+# is not a fixed size — the same job kept 17 KB one run and 34 KB the next,
+# which is the printer starting to consume at different moments after the
+# link comes up. A modelled lead (sent − 6500 × elapsed, throttle above 24 KB)
+# was tried before that and also dropped a band, for the same reason: the
+# printer does not begin eating when the first byte lands.
 #
-# A modelled version of this was tried first — estimate the lead from elapsed
-# time and throttle above 24 KB of it — and it STILL dropped a band, early,
-# before the throttle engaged. The estimate is wrong in a direction that
-# flatters it (the printer does not start consuming when the first byte lands),
-# and rather than tune a model nobody can see inside, this switches on the one
-# quantity known exactly and in advance: how big the job is.
-#
-# So: full speed up to the largest job proven lossless, every write
-# acknowledged above it. TP6S_BARRIER overrides both, for measuring.
-SAFE_FAST_BYTES = 73 * 1024      # 1038 lines of 72 B; fox.png is 1008
+# So the rule no longer tries to know the buffer. Burst only enough to give
+# the printer a cushion — HEAD_START_BYTES at full speed, ~1.5 s of paper —
+# then hold a steady rate at the printer's appetite, and listen. A fed
+# printer eats 9-10 KB/s (measured from its own empty reports, at speed 2
+# and 3 alike); the acknowledged floor of 6.5 KB/s alone drained the cushion
+# and the motor stuttered every second or so. But each stutter is announced — the printer sends a status
+# frame when its buffer runs empty — and _stream_job answers each one with a
+# fresh burst and a slightly higher rate. The lead only ever grows from a
+# known-empty buffer. TP6S_BARRIER=N still forces one interval for the whole
+# job, for measuring. TP6S_HEAD_KB=N sizes both the head start and each
+# refill (0 = no burst at all). TP6S_PACE_KBS=N sets the opening rate.
+try:
+    HEAD_START_BYTES = max(0, int(float(os.environ.get("TP6S_HEAD_KB", "12")) * 1024))
+except ValueError:
+    HEAD_START_BYTES = 12 * 1024
 
 _seq = 0
 
@@ -173,7 +189,36 @@ async def _send(client, write_uuid, cmd, payload=b"", chunk_sz=BLE_CHUNK_SZ):
             await asyncio.sleep(INTER_CHUNK_MS)
 
 
-async def _stream_job(client, write_uuid, job, chunk_sz, barrier=BARRIER_EVERY):
+# The steady pace is held by the clock, not by an ack pattern. Measured
+# 2026-09-04 with 237-byte writes: every write acknowledged is 6.5 KB/s,
+# every other write 9.8 KB/s, every eighth ~12, and "2 of 3 acknowledged" —
+# tried as a rung between the first two — came out at ~6.7 KB/s, barely off
+# the floor: the radio quantises acked writes to its connection interval, so
+# patterns do not interpolate. One acknowledged write in four is therefore
+# the steady pattern, and short sleeps throttle it down to the rate the loop
+# wants.
+#
+# The appetite came out of the empty reports themselves: a fed printer at
+# speed 3 took 23 KB in its first 2.4 s and 28 KB in the next 3, i.e. 9 to
+# 10 KB/s, the same on two pages of very different tone. (An earlier figure
+# of 8 counted the paper feed as print time; an opening rate of 9.0 still
+# left one stutter per page, at 39-49 KB in.) The opening rate sits at the
+# appetite; each empty report raises it a step. Note the fast barrier is
+# only ~12 KB/s, so a refill burst against a printer eating 10 nets little
+# cushion — the head start, delivered before the printer gets going, is the
+# one that counts, and after it the rate step does the work.
+PACE_START_KBS = 10.0
+PACE_STEP_KBS  = 0.5
+PACE_MAX_KBS   = 11.0         # one-in-four's own ceiling is a little above
+PACE_BARRIER   = 4
+try:
+    PACE_START_KBS = float(os.environ.get("TP6S_PACE_KBS", PACE_START_KBS))
+except ValueError:
+    pass
+
+
+async def _stream_job(client, write_uuid, job, chunk_sz, barrier=BARRIER_EVERY,
+                      head=None, heard=None, burst=None):
     """Stream one pre-built job buffer, with periodic with-response barriers.
 
     write-without-response is unacknowledged, and bleak does not honour
@@ -183,20 +228,71 @@ async def _stream_job(client, write_uuid, job, chunk_sz, barrier=BARRIER_EVERY):
     write-WITH-response drains that queue and gives real backpressure, at a
     fraction of the cost of acknowledging every packet.
 
-    Measured on a TP6-S: ~11 KB/s delivered vs ~6 KB/s consumed. That margin is
-    what keeps the printer's buffer from running dry, and a buffer that never
-    empties is a motor that never stops.
+    Measured on a TP6-S: ~11-12 KB/s delivered vs ~8 KB/s consumed. That
+    margin is what keeps the printer's buffer from running dry, and a buffer
+    that never empties is a motor that never stops.
 
-    But a margin compounds, and on a long job it puts more into the printer
-    than the printer can hold — see SAFE_FAST_BYTES, where the caller decides
-    which barrier a job of this size may safely use.
+    But a margin compounds, and it puts more into the printer than the
+    printer can hold — see HEAD_START_BYTES. So `barrier` applies only to the
+    first `head` bytes of the job. Past them delivery is held to a steady
+    rate, PACE_START_KBS, by the clock (PACE_BARRIER keeps the controller
+    queue honest meanwhile), and then listens: `heard` is the list the notify
+    callback appends every status frame to, and a status frame arriving
+    mid-stream is the printer reporting its buffer empty (measured
+    2026-09-04: three stutters heard, three frames logged, to the tenth of a
+    second; the one known impostor is a frame at ~5.2 s that looks like a
+    heartbeat, and answering it costs one bounded burst). Each report refills the cushion with `burst` bytes at the fast
+    barrier and raises the steady rate by PACE_STEP_KBS. The lead only ever
+    grows from a known-empty buffer, and the rate only rises after the
+    printer has proved it can eat faster, so the surplus is never more than
+    one step; and a page whose appetite the opening rate cannot meet
+    stutters once, not once a second.
+
+    `head=None` means the whole job at `barrier` (the measuring override);
+    0 means no burst at all. Returns (writes, events, final rate), events
+    being (offset, seconds, KB/s) for each empty report acted on.
     """
+    if head is None:
+        head = len(job)
+    if burst is None:
+        burst = head
+    heard = heard if heard is not None else []
+    t0 = time.monotonic()
     n = 0
+    fast_until = head          # bytes: up to here, the fast barrier applies
+    rate = PACE_START_KBS * 1024
+    seen = None                # frames already heard when the head start ended
+    events = []
+    phase_t0, phase_bytes = None, 0   # the clock the steady pace is held to
     for off in range(0, len(job), chunk_sz):
         n += 1
-        await client.write_gatt_char(write_uuid, job[off:off + chunk_sz],
-                                     response=(n % barrier == 0))
-    return n
+        piece = job[off:off + chunk_sz]
+        if off < fast_until:
+            await client.write_gatt_char(write_uuid, piece,
+                                         response=(n % barrier == 0))
+            continue
+        if seen is None:
+            seen = len(heard)          # nothing before this counts
+            phase_t0, phase_bytes = time.monotonic(), 0
+        elif len(heard) > seen:
+            seen = len(heard)
+            fast_until = off + burst
+            rate = min(rate + PACE_STEP_KBS * 1024, PACE_MAX_KBS * 1024)
+            events.append((off, heard[-1][0] - t0, rate / 1024))
+            phase_t0, phase_bytes = None, 0
+            await client.write_gatt_char(write_uuid, piece,
+                                         response=(n % barrier == 0))
+            continue
+        if phase_t0 is None:           # first steady write after a burst
+            phase_t0 = time.monotonic()
+        due = phase_t0 + phase_bytes / rate
+        wait = due - time.monotonic()
+        if wait > 0:
+            await asyncio.sleep(wait)
+        await client.write_gatt_char(write_uuid, piece,
+                                     response=(n % PACE_BARRIER == 0))
+        phase_bytes += len(piece)
+    return n, events, rate / 1024
 
 
 async def _await_print_end(ack_q, lines, quiet=2.5, floor=1.0):
@@ -671,7 +767,7 @@ def _build_hdr_fn(tmpl):
     return build
 
 
-async def _do_print(addr, data, width_bytes, height, density=10, speed=3, feed=140,
+async def _do_print(addr, data, width_bytes, height, density=10, speed=2, feed=140,
                     min_height=64, invert=False, force=False, header_px=False,
                     before_cmds=(), after_cmds=(), n_lines=None,
                     lines_per_frame=None, img_cmd=None, img_hdr_fn=None,
@@ -726,7 +822,9 @@ async def _do_print(addr, data, width_bytes, height, density=10, speed=3, feed=1
 
         # Notifications: printer ACK
         ack_q = asyncio.Queue()
+        heard = []        # (monotonic, raw) — every frame, stamped on arrival
         def _notif(handle, raw):
+            heard.append((time.monotonic(), bytes(raw)))
             ack_q.put_nowait(bytes(raw))
         if n_u:
             await client.start_notify(n_u, _notif)
@@ -758,20 +856,28 @@ async def _do_print(addr, data, width_bytes, height, density=10, speed=3, feed=1
             job += _make_frame(CMD_FEED, bytes([feed & 0xFF, (feed >> 8) & 0xFF]))
             job = bytes(job)
 
-            if BARRIER_FORCED or len(job) <= SAFE_FAST_BYTES:
-                barrier, why = BARRIER_EVERY, ""
+            if BARRIER_FORCED:
+                head, how = None, f"barrier every {BARRIER_EVERY}, forced"
+            elif len(job) <= HEAD_START_BYTES:
+                head, how = None, f"barrier every {BARRIER_EVERY}, fits the head start"
             else:
-                barrier = 1
-                why = (f" — {len(job)//1024} KB is past the {SAFE_FAST_BYTES//1024} KB "
-                       f"a full-speed job may safely be, so every write is "
-                       f"acknowledged")
-            print(f"Streaming {len(job)} B in {chunk_sz}-byte writes "
-                  f"(barrier every {barrier}){why}...")
+                head = HEAD_START_BYTES
+                how = (f"barrier every {BARRIER_EVERY} for the first "
+                       f"{head // 1024} KB, then {PACE_START_KBS:.1f} KB/s, "
+                       f"stepping up whenever the printer reports empty")
+            print(f"Streaming {len(job)} B in {chunk_sz}-byte writes ({how})...")
             t0 = time.monotonic()
-            nw = await _stream_job(client, w_u, job, chunk_sz, barrier)
+            nw, events, final = await _stream_job(client, w_u, job, chunk_sz,
+                                                  BARRIER_EVERY, head, heard)
             dt = time.monotonic() - t0
             print(f"  delivered {nw} writes in {dt:.1f}s "
                   f"({len(job)/max(dt,1e-6)/1024:.1f} KB/s)")
+            for off, at, kbs in events:
+                print(f"  printer empty at {at:.2f}s, {off // 1024} KB in: "
+                      f"burst {HEAD_START_BYTES // 1024} KB, then {kbs:.1f} KB/s")
+            if head is not None and events:
+                print(f"  settled at {final:.1f} KB/s after {len(events)} "
+                      f"empty report(s)")
 
             if n_u:
                 tail, acks = await _await_print_end(ack_q, height)
@@ -789,6 +895,16 @@ async def _do_print(addr, data, width_bytes, height, density=10, speed=3, feed=1
                           f"V {min(mv)/1000:.2f}-{max(mv)/1000:.2f}  "
                           f"T {stats[0]['temp']}->{stats[-1]['temp']}  "
                           f"batt {stats[-1]['batt']}%")
+                # A print that stops a third of the way in and never resumes
+                # is a different animal from a band dropped mid-stream, and
+                # the range above cannot tell them apart. The timeline can:
+                # when each frame arrived, measured from the first write,
+                # against the ~90 lines/s the page should have taken.
+                need = height / 90.0
+                print(f"  timeline (s after first write; page needs ~{need:.1f}s "
+                      f"at 90 lines/s, delivery took {dt:.1f}s):")
+                for ts, raw in heard:
+                    print(f"    {ts - t0:6.2f}  {_ack_decode(raw)}")
                 try:
                     await client.stop_notify(n_u)
                 except Exception:
@@ -965,7 +1081,7 @@ async def _do_print(addr, data, width_bytes, height, density=10, speed=3, feed=1
         print("Impression terminee !")
 
 
-async def cmd_test_print(addr, pattern="black", density=12, speed=3, feed=40,
+async def cmd_test_print(addr, pattern="black", density=12, speed=2, feed=40,
                          bpl_override=None, n=64, header_px=False,
                          before_cmds=(), after_cmds=(), lines_per_frame=None,
                          img_cmd=None, img_hdr_fn=None):
@@ -1018,7 +1134,7 @@ async def cmd_test_print(addr, pattern="black", density=12, speed=3, feed=40,
                     img_cmd=img_cmd, img_hdr_fn=img_hdr_fn)
 
 
-async def cmd_print_text(addr, text, font_size=32, density=12, speed=3, feed=85):
+async def cmd_print_text(addr, text, font_size=32, density=12, speed=2, feed=85):
     try:
         from PIL import Image, ImageDraw, ImageFont
         _pil = True
@@ -1074,7 +1190,7 @@ async def cmd_print_text(addr, text, font_size=32, density=12, speed=3, feed=85)
     await _do_print(addr, bytes(data), BPL, total_h, density, speed, feed)
 
 
-async def cmd_print_pbm(addr, path, density=8, speed=3, feed=85):
+async def cmd_print_pbm(addr, path, density=8, speed=2, feed=85):
     with open(path, 'rb') as f:
         magic = f.readline().strip()
         if magic != b'P4':
@@ -1155,7 +1271,7 @@ def prepare_raster(img, threshold=128, dither=True, rotate=0):
     return bytes(b ^ 0xFF for b in raw1), new_h
 
 
-async def cmd_print_raster(addr, path, density=10, speed=3, feed=150,
+async def cmd_print_raster(addr, path, density=10, speed=2, feed=150,
                            threshold=128, dither=True, rotate=0,
                            lines_per_frame=24, window=6, stream=True):
     """Print JPG/PNG file (any PIL format) converted to 1bpp."""
@@ -1379,7 +1495,7 @@ async def _serve_print_job(payload):
         await _do_print(
             addr, raw, bpl, height,
             density=payload.get("density", 10),
-            speed=payload.get("speed", 3),
+            speed=payload.get("speed", 2),
             feed=payload.get("feed", 140),
             min_height=payload.get("minHeight", 64),
             invert=bool(payload.get("invert", False)),
@@ -1453,7 +1569,7 @@ async def _serve_pdf_job(payload):
             return 400, {"error": str(e)}
 
         async def go(addr):
-            await _do_print(addr, data, BPL, height, density=10, speed=3, feed=140,
+            await _do_print(addr, data, BPL, height, density=10, speed=2, feed=140,
                             lines_per_frame=24)
             return 200, {}
 
@@ -1728,7 +1844,7 @@ def main():
             threshold = _parse_int_flag("--threshold", 128)
             rotate    = _parse_int_flag("--rotate", 0)
             density   = _parse_int_flag("--density", 10)
-            speed     = _parse_int_flag("--speed", 3)
+            speed     = _parse_int_flag("--speed", 2)
             lines     = _parse_int_flag("--lines", 24)
             window    = _parse_int_flag("--window", 6)
             stream    = "--legacy" not in args

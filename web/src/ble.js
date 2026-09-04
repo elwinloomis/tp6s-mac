@@ -467,7 +467,7 @@
     // hooks = {onProgress(pct, {block, blocks, line, lines}), onStats(stats)}
     async print(job, opts, hooks) {
       const options = Object.assign(
-        { density: 10, speed: 3, feed: 85, window: 6, minHeight: 64, invert: false },
+        { density: 10, speed: 2, feed: 85, window: 6, minHeight: 64, invert: false },
         opts
       );
       const h = hooks || {};

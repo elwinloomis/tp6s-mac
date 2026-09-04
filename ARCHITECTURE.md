@@ -38,11 +38,14 @@ CLI and browser use roll-style pages without that PDF-specific guard.
 
 Chrome Web Bluetooth delivers about 1.74 KB/s on the tested hardware. Python
 with bleak can enqueue about 11 KB/s, while the printer consumes roughly
-6 KB/s. The Python path streams writes without response and periodically uses
-a write-with-response barrier. For jobs above roughly 1,000 lines it also
-paces delivery so the printer's internal buffer cannot silently overflow.
+6 KB/s. The Python path streams the first 12 KB of a job without response, with a
+periodic write-with-response barrier, then holds delivery to a steady rate
+just under the printer's measured appetite. The printer sends a status frame
+whenever its buffer runs empty; each one refills the cushion with another
+burst and raises the rate a step. The buffer's margin varies between runs of
+the same job, so no size threshold is safe; see INVESTIGATION.md.
 
-Density 10, speed 3 and 24 lines per image frame are the tested defaults.
+Density 10, speed 2 and 24 lines per image frame are the tested defaults.
 These are empirical settings rather than protocol requirements.
 
 ## Printer discovery and local state
@@ -90,5 +93,6 @@ instead.
 - Never retry after bytes may have reached the printer, which could duplicate
   physical output.
 - Composite transparency onto white before one-bit conversion.
-- Use a periodic response barrier and pace long jobs.
+- Burst only a short head start; pace by the clock, and let the printer's
+  empty reports, never a model, raise the rate.
 - Treat hardware measurements as model-specific until reproduced elsewhere.

@@ -27,7 +27,8 @@ The invariants are part of correctness:
 - connect, perform one operation, disconnect;
 - never retry after output may have begun;
 - preserve exactly 72 raster bytes per line;
-- retain the barrier and long-job pacing rules; and
+- retain the barrier, the head start, and the pacing loop that answers the
+  printer's empty reports; never raise the delivery rate on a model alone; and
 - do not make the unauthenticated helper reachable beyond loopback.
 
 ## Extension points
@@ -84,8 +85,10 @@ bash tools/check.sh
 
 Transport and raster changes also require physical verification. Record the
 printer label/firmware if known, macOS version, line and byte counts, elapsed
-time, barrier setting, and whether the whole middle of a long print survived.
-A successful Bluetooth write is not proof that every line reached paper.
+time, pacing settings, the status-frame timeline the helper prints, how many
+times the motor stopped, and whether the print reached the bottom with its
+whole middle intact. A successful Bluetooth write is not proof that every
+line reached paper, and a smooth motor is not proof that every line arrived.
 
 ## Pull-request checklist
 

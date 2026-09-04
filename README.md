@@ -119,15 +119,20 @@ Web Bluetooth. It works but stutters. It is the fallback.
 | Path | Measured throughput |
 |---|---|
 | Chrome Web Bluetooth | 1.74 KB/s |
-| Python + bleak, streamed with a barrier | 11 KB/s |
-| **What the printer eats** | **~6 KB/s** |
+| Python + bleak, every write acknowledged | 6.5 KB/s |
+| Python + bleak, streamed with a barrier | ~12 KB/s |
+| **What the printer eats** | **9–10 KB/s** |
 
-Deliver under ~6 KB/s and the motor stops and starts; the print bands.
-Deliver too far over it and the printer's buffer silently overflows; a strip
-vanishes from the middle of the page. This toolkit streams each job as one
-buffer with periodic write barriers — the narrow path between those — for
-a short head start, then holds every job to the printer's own pace, because a
-stutter you can see beats a hole you cannot.
+Deliver under what the printer eats and the motor stops and starts; the print
+bands. Deliver over it for long and the printer's buffer silently overflows;
+the page stops short, or a strip vanishes from its middle. The margin between
+those is not a fixed size — the same page kept 17 KB one run and 34 KB the
+next — so this toolkit does not try to know it. It streams a short head start
+at full speed, then paces the rest by the clock at the printer's appetite,
+and listens: the printer sends a status frame whenever its buffer runs empty,
+and each one buys a refill and a slightly faster pace. The lead only ever
+grows from a buffer the printer has just said is empty, because a stutter you
+can see beats a hole you cannot.
 
 ## Getting good prints
 

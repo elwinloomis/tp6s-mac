@@ -143,6 +143,16 @@ has proved it can eat faster, so the surplus is never more than one step.
 A page whose appetite the opening rate cannot meet stutters once, not once a
 second.
 
+Verified on a long job the same day: a 2,400-line, 172 KB test strip of
+numbered bands, alternating grey wash and line art, with two crossing
+diagonals down its full length. It printed whole with both diagonals
+unbroken, two stops heard (lines ~1070 and ~1680, both in the log as empty
+reports). Delivery averaged 9.5 KB/s against a requested 11: the loop was
+saturated against the radio, and the printer, eating a little over 10, caught
+up every five seconds or so. On this link the remaining stutter on long jobs
+is the radio's ceiling, not a pacing number. Whether a barrier above 8 raises
+that ceiling is unmeasured.
+
 The refill burst is worth less than it looks: the fast barrier is only about
 12 KB/s, so against a printer eating 10 it nets a couple of KB of cushion.
 The head start, delivered before the printer gets going, is the cushion that
@@ -244,7 +254,8 @@ When changing transport behaviour, test in this order:
 2. Print the generated staircase with short and long barrier intervals.
 3. Print a job of about 700 lines from a printer that has sat idle, and
    confirm it reaches the bottom; then again immediately, warm.
-4. Print a job above 1,845 lines and inspect the entire middle for omissions.
+4. Print a job above 1,845 lines carrying numbered bands and a full-length
+   diagonal, and inspect the diagonal for a break.
 5. Record elapsed time, byte count, line count, barrier count, voltage and
    temperature.
 
